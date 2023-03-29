@@ -7,11 +7,18 @@ from quart import request
 # Note: Setting CORS to allow chat.openapi.com is required for ChatGPT to access your plugin
 app = quart_cors.cors(quart.Quart(__name__), allow_origin="https://chat.openai.com")
 
+_SERVICE_AUTH_KEY = "REPLACE_ME"
 _TODOS = {}
+
+
+def assert_auth_header(req):
+    assert req.headers.get(
+        "Authorization", None) == f"Bearer {_SERVICE_AUTH_KEY}"
 
 
 @app.post("/todos/<string:username>")
 async def add_todo(username):
+    assert_auth_header(quart.request)
     request = await quart.request.get_json(force=True)
     if username not in _TODOS:
         _TODOS[username] = []
@@ -21,11 +28,13 @@ async def add_todo(username):
 
 @app.get("/todos/<string:username>")
 async def get_todos(username):
+    assert_auth_header(quart.request)
     return quart.Response(response=json.dumps(_TODOS.get(username, [])), status=200)
 
 
 @app.delete("/todos/<string:username>")
 async def delete_todo(username):
+    assert_auth_header(quart.request)
     request = await quart.request.get_json(force=True)
     todo_idx = request["todo_idx"]
     if 0 <= todo_idx < len(_TODOS[username]):
@@ -44,8 +53,6 @@ async def plugin_manifest():
     host = request.headers['Host']
     with open("ai-plugin.json") as f:
         text = f.read()
-        # This is a trick we do to populate the PLUGIN_HOSTNAME constant in the manifest
-        text = text.replace("PLUGIN_HOSTNAME", f"https://{host}")
         return quart.Response(text, mimetype="text/json")
 
 
@@ -54,8 +61,6 @@ async def openapi_spec():
     host = request.headers['Host']
     with open("openapi.yaml") as f:
         text = f.read()
-        # This is a trick we do to populate the PLUGIN_HOSTNAME constant in the OpenAPI spec
-        text = text.replace("PLUGIN_HOSTNAME", f"https://{host}")
         return quart.Response(text, mimetype="text/yaml")
 
 
